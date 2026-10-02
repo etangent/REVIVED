@@ -114,6 +114,7 @@ async def main():
 
         player_rotated = pygame.transform.rotate(player_image, player.theta)
         screen.blit(player_rotated, player_rotated.get_rect(center=player.pos))
+        pygame.draw.circle(screen, (255, 255, 255), target, 5)
 
         for p in pumpkins:
             pygame.draw.circle(screen, (254, 117, 24), p.pos, p.r)
