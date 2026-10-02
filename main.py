@@ -27,7 +27,7 @@ class Robot:
         return Vector2(-1, 0).rotate(-self.theta)
 
 class Pumpkin:
-    camera_height = 75**2 / 2
+    camera_height = 60**2 / 2
 
     def __init__(self, pos, v=Vector2(0, 0), v_up = 0, height = 0, r = 10):
         self.pos = pos
@@ -92,7 +92,7 @@ async def main():
         player.update()
 
         if keys[pygame.K_SPACE] and player.reload == 0:
-            pumpkins.append(Pumpkin(player.pos.copy(), player.forward() * 10, 10))
+            pumpkins.append(Pumpkin(player.pos.copy(), player.forward() * 10, 30))
             player.reload = .1
 
         for p in pumpkins:
