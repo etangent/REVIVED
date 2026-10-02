@@ -41,7 +41,7 @@ class Pumpkin:
         self.height += self.v_up
 
         if self.height == 0:
-            self.v *= .95
+            self.v *= .5
             return
 
         if self.height < 0:
@@ -65,11 +65,15 @@ async def main():
 
     pumpkins = []
 
+    target = Vector2(WIDTH/4, HEIGHT/2)
+
     running = True
     while running:    
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                pygame.quit()
+                pygame.quit()      
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                target.x, target.y = event.pos
 
         keys = pygame.key.get_pressed()
         val = 2
@@ -92,7 +96,14 @@ async def main():
         player.update()
 
         if keys[pygame.K_SPACE] and player.reload == 0:
-            pumpkins.append(Pumpkin(player.pos.copy(), player.forward() * 10, 30))
+            v_up = random.randint(25, 35)
+            tof = 2 * v_up
+            print(tof)
+            v = (target - player.pos).normalize() * target.distance_to(player.pos) / tof
+            print(v.length() * tof)
+            print(v)
+            v += .05 * player.v
+            pumpkins.append(Pumpkin(player.pos.copy(), v, v_up))
             player.reload = .1
 
         for p in pumpkins:
