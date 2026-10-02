@@ -72,8 +72,12 @@ async def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()      
+
             if event.type == pygame.MOUSEBUTTONDOWN:
-                target.x, target.y = event.pos
+                window_w, window_h = pygame.display.get_window_size()
+                mx, my = event.pos
+                target.x = mx * WIDTH / window_w
+                target.y = my * HEIGHT / window_h
 
         keys = pygame.key.get_pressed()
         val = 2
