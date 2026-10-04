@@ -1,3 +1,4 @@
+from cmath import rect
 import pygame
 import random
 import math
@@ -5,6 +6,7 @@ import asyncio
 from pygame.math import Vector2
 
 WIDTH, HEIGHT = 1400, 900
+robot_hitbox = 30
 
 class Robot:
     def __init__(self, pos, v=Vector2(0,0), theta=0, w=0, reload = 0):
@@ -21,6 +23,31 @@ class Robot:
         self.pos += self.v
         self.theta += self.w
         self.reload = max(0, self.reload - 1/60)
+
+    def get_hitbox(self):
+        h = robot_hitbox
+        corners = []
+        for x, y in [(-h, -h), (h, -h), (h, h), (-h, h)]:
+            corners.append(self.pos + Vector2(x, y).rotate(-self.theta))
+        return corners
+
+    def collide_walls(self):
+        corners = self.get_hitbox()
+        xs = [c.x for c in corners]
+        ys = [c.y for c in corners]
+
+        if min(xs) < 0:
+            self.pos.x += -min(xs)
+            self.v.x = 0
+        if max(xs) > WIDTH:
+            self.pos.x -= max(xs) - WIDTH
+            self.v.x = 0
+        if min(ys) < 0:
+            self.pos.y += -min(ys)
+            self.v.y = 0
+        if max(ys) > HEIGHT:
+            self.pos.y -= max(ys) - HEIGHT
+            self.v.y = 0
 
     # returns the unit vector forward
     def forward(self):
@@ -98,6 +125,8 @@ async def main():
         if keys[pygame.K_l]:
             player.w -= 2
         player.update()
+        player.collide_walls()
+        pygame.draw.polygon(screen, (0, 255, 0), player.get_hitbox(), 1)
 
         if keys[pygame.K_SPACE] and player.reload == 0:
             v_up = random.randint(25, 35)
