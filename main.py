@@ -168,7 +168,7 @@ async def main():
 
         font = pygame.font.Font(None, 50)
         text_surface = font.render(str(player.held) + "/" + str(player.capacity) + " held", False, (255, 255, 255))
-        screen.blit(text_surface, (10, HEIGHT - 20))
+        screen.blit(text_surface, (10, HEIGHT - 50))
 
         pygame.display.flip()
         clock.tick(60)
