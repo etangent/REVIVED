@@ -9,13 +9,14 @@ WIDTH, HEIGHT = 1400, 900
 robot_hitbox = 30
 
 class Robot:
-    def __init__(self, pos, v=Vector2(0,0), theta=0, w=0, reload = 0):
+    def __init__(self, pos, v=Vector2(0,0), theta=0, w=0, capacity = 70):
         self.pos = pos
         self.v = v
         self.theta = theta
         self.w = w
         self.held = 0
-        self.reload = reload
+        self.reload = 0
+        self.capacity = capacity
 
     def update(self):
         self.v *= .9
@@ -91,6 +92,10 @@ async def main():
     player = Robot(Vector2(WIDTH/2, HEIGHT/2))
 
     pumpkins = []
+    for i in range(-4, 5):
+        for j in range(-10, 11):
+            pumpkins.append(Pumpkin(Vector2(WIDTH/2 + i * 24, HEIGHT/2 + j * 24)))
+
 
     target = Vector2(WIDTH/4, HEIGHT/2)
 
@@ -128,16 +133,25 @@ async def main():
         player.collide_walls()
         pygame.draw.polygon(screen, (0, 255, 0), player.get_hitbox(), 1)
 
-        if keys[pygame.K_SPACE] and player.reload == 0:
+        if keys[pygame.K_SPACE] and player.held > 0 and player.reload == 0:
             v_up = random.randint(25, 35)
             tof = 2 * v_up
-            print(tof)
             v = (target - player.pos).normalize() * target.distance_to(player.pos) / tof
-            print(v.length() * tof)
-            print(v)
             v += .05 * player.v
             pumpkins.append(Pumpkin(player.pos.copy(), v, v_up))
             player.reload = .1
+            player.held -= 1
+
+        if keys[pygame.K_LSHIFT]:
+            taken = []
+            for p in pumpkins:
+                if player.held == player.capacity:
+                    break
+                if p.v_up == 0 and (-1 * player.forward()).dot((p.pos - player.pos)) > .5 and p.pos.distance_to(player.pos - player.forward()) < 4 * p.r:
+                    taken.append(p)
+                    player.held+=1
+            for t in taken:
+                pumpkins.remove(t)
 
         for p in pumpkins:
             p.update()
@@ -151,6 +165,10 @@ async def main():
 
         for p in pumpkins:
             pygame.draw.circle(screen, (254, 117, 24), p.pos, p.r)
+
+        font = pygame.font.Font(None, 50)
+        text_surface = font.render(str(player.held) + "/" + str(player.capacity) + " held", False, (255, 255, 255))
+        screen.blit(text_surface, (10, HEIGHT - 20))
 
         pygame.display.flip()
         clock.tick(60)
