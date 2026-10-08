@@ -110,10 +110,13 @@ async def main():
 
     player_image = pygame.image.load("assets/player.png").convert_alpha()
     player_image = pygame.transform.scale(player_image, (60, 60))
+    bg_image = pygame.image.load("assets/field.png").convert_alpha()
+    bg_image = pygame.transform.scale(bg_image, (WIDTH, HEIGHT))
 
     player = Robot(Vector2(WIDTH/2 +.1, HEIGHT/2))
 
-    player_hub = Hub(Vector2(WIDTH / 4, HEIGHT/2))
+    player_hub = Hub(Vector2(WIDTH / 4 - 20, HEIGHT/2))
+    enemy_hub = Hub(Vector2(3* WIDTH / 4 + 20, HEIGHT/2))
 
     pumpkins = []
     for i in range(-4, 5):
@@ -156,9 +159,9 @@ async def main():
         if keys[pygame.K_SPACE] and player.held > 0 and player.reload == 0:
             if player.pos.x > WIDTH / 4:
                 if player.pos.y < HEIGHT / 2:
-                    target = Vector2(WIDTH / 8, HEIGHT / 4)
+                    target = Vector2(WIDTH / 4, HEIGHT / 4)
                 else:
-                    target = Vector2(WIDTH / 8, 3 * HEIGHT / 4)
+                    target = Vector2(WIDTH / 4, 3 * HEIGHT / 4)
             else:
                 target = Vector2(player_hub.pos)
 
@@ -178,7 +181,7 @@ async def main():
                 if p.v_up == 0 and (-1 * player.forward()).dot((p.pos - player.pos).normalize()) > .7 and p.pos.distance_to(player.pos - player.forward()) < 4 * p.r:
                     taken.append(p)
                     player.held+=1
-                    player.intake_reload += .05
+                    player.intake_reload += .03
             for t in taken:
                 pumpkins.remove(t)
 
@@ -186,7 +189,7 @@ async def main():
         for p in pumpkins:
             p.update()
 
-            if player_hub.pos.distance_to(p.pos) < 180 and p.height < 5:
+            if player_hub.pos.distance_to(p.pos) < 75 and p.height < 5:
                 player_hub.held += 1
                 taken.append(p)
                 if shift(timer)[0] != "loser":
@@ -195,11 +198,12 @@ async def main():
             pumpkins.remove(t)
 
         if player_hub.held > 0 and random.randint(0, 6 - min(6, player_hub.held)) == 0:
-            pumpkins.append(Pumpkin(player_hub.pos + Vector2(200, 0), Vector2(1, 0).rotate(random.uniform(-45, 45)) * 10))
+            pumpkins.append(Pumpkin(player_hub.pos + Vector2(80, 0), Vector2(1, 0).rotate(random.uniform(-45, 45)) * random.uniform(3, 10)))
             player_hub.held -= 1
 
 
         screen.fill((0,0,0))
+        screen.blit(bg_image, (0, 0))
 
         player_rotated = pygame.transform.rotate(player_image, player.theta)
         screen.blit(player_rotated, player_rotated.get_rect(center=player.pos))
