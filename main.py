@@ -16,6 +16,7 @@ class Robot:
         self.w = w
         self.held = 0
         self.reload = 0
+        self.intake_reload = 0
         self.capacity = capacity
 
     def update(self):
@@ -24,6 +25,7 @@ class Robot:
         self.pos += self.v
         self.theta += self.w
         self.reload = max(0, self.reload - 1/60)
+        self.intake_reload = max(0, self.intake_reload - 1/60)
 
     def get_hitbox(self):
         h = robot_hitbox
@@ -69,7 +71,7 @@ class Pumpkin:
         self.height += self.v_up
 
         if self.height == 0:
-            self.v *= .5
+            self.v *= .98
             return
 
         if self.height < 0:
@@ -80,6 +82,26 @@ class Pumpkin:
         self.v_up -= 1
         self.r = 10 * self.camera_height / (self.camera_height - self.height)
 
+class Hub:
+    def __init__(self, pos):
+        self.pos = pos
+        self.held = 0
+
+def shift(time):
+    if (time < 20):
+        return ("auto", math.floor(20 - time))
+    elif (time < 30):
+        return ("transition", math.floor(30 - time))
+    elif (time < 55):
+        return ("loser", math.floor(55 - time))
+    elif (time < 80):
+        return ("winner", math.floor(80 - time))
+    elif (time < 105):
+        return ("loser", math.floor(105 - time))
+    elif (time < 130):
+        return ("winner", math.floor(130 - time))
+    elif (time < 160):
+        return ("endgame", math.floor(160 - time))
 
 async def main():
     pygame.init()
@@ -89,7 +111,9 @@ async def main():
     player_image = pygame.image.load("assets/player.png").convert_alpha()
     player_image = pygame.transform.scale(player_image, (60, 60))
 
-    player = Robot(Vector2(WIDTH/2, HEIGHT/2))
+    player = Robot(Vector2(WIDTH/2 +.1, HEIGHT/2))
+
+    player_hub = Hub(Vector2(WIDTH / 4, HEIGHT/2))
 
     pumpkins = []
     for i in range(-4, 5):
@@ -99,17 +123,13 @@ async def main():
 
     target = Vector2(WIDTH/4, HEIGHT/2)
 
+    timer = 0
+    score = 0
     running = True
     while running:    
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()      
-
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                window_w, window_h = pygame.display.get_window_size()
-                mx, my = event.pos
-                target.x = mx * WIDTH / window_w
-                target.y = my * HEIGHT / window_h
 
         keys = pygame.key.get_pressed()
         val = 2
@@ -134,6 +154,14 @@ async def main():
         pygame.draw.polygon(screen, (0, 255, 0), player.get_hitbox(), 1)
 
         if keys[pygame.K_SPACE] and player.held > 0 and player.reload == 0:
+            if player.pos.x > WIDTH / 4:
+                if player.pos.y < HEIGHT / 2:
+                    target = Vector2(WIDTH / 8, HEIGHT / 4)
+                else:
+                    target = Vector2(WIDTH / 8, 3 * HEIGHT / 4)
+            else:
+                target = Vector2(player_hub.pos)
+
             v_up = random.randint(25, 35)
             tof = 2 * v_up
             v = (target - player.pos).normalize() * target.distance_to(player.pos) / tof
@@ -145,23 +173,36 @@ async def main():
         if keys[pygame.K_LSHIFT]:
             taken = []
             for p in pumpkins:
-                if player.held == player.capacity:
+                if player.held == player.capacity or player.intake_reload >= .15:
                     break
-                if p.v_up == 0 and (-1 * player.forward()).dot((p.pos - player.pos)) > .5 and p.pos.distance_to(player.pos - player.forward()) < 4 * p.r:
+                if p.v_up == 0 and (-1 * player.forward()).dot((p.pos - player.pos).normalize()) > .7 and p.pos.distance_to(player.pos - player.forward()) < 4 * p.r:
                     taken.append(p)
                     player.held+=1
+                    player.intake_reload += .05
             for t in taken:
                 pumpkins.remove(t)
 
+        taken = []
         for p in pumpkins:
             p.update()
+
+            if player_hub.pos.distance_to(p.pos) < 180 and p.height < 5:
+                player_hub.held += 1
+                taken.append(p)
+                if shift(timer)[0] != "loser":
+                    score += 1
+        for t in taken:
+            pumpkins.remove(t)
+
+        if player_hub.held > 0 and random.randint(0, 6 - min(6, player_hub.held)) == 0:
+            pumpkins.append(Pumpkin(player_hub.pos + Vector2(200, 0), Vector2(1, 0).rotate(random.uniform(-45, 45)) * 10))
+            player_hub.held -= 1
 
 
         screen.fill((0,0,0))
 
         player_rotated = pygame.transform.rotate(player_image, player.theta)
         screen.blit(player_rotated, player_rotated.get_rect(center=player.pos))
-        pygame.draw.circle(screen, (255, 255, 255), target, 5)
 
         for p in pumpkins:
             pygame.draw.circle(screen, (254, 117, 24), p.pos, p.r)
@@ -169,9 +210,16 @@ async def main():
         font = pygame.font.Font(None, 50)
         text_surface = font.render(str(player.held) + "/" + str(player.capacity) + " held", False, (255, 255, 255))
         screen.blit(text_surface, (10, HEIGHT - 50))
+        font = pygame.font.Font(None, 50)
+        text_surface = font.render("Score: " + str(score), False, (255, 255, 255))
+        screen.blit(text_surface, (10, 0))
+        font = pygame.font.Font(None, 50)
+        text_surface = font.render("Shift: " + shift(timer)[0] + ", " + str(shift(timer)[1]), False, (255, 255, 255))
+        screen.blit(text_surface, (WIDTH - 500, HEIGHT - 50))
 
         pygame.display.flip()
         clock.tick(60)
+        timer += 1/60
         await asyncio.sleep(0)
 
     pygame.quit()
