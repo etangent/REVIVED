@@ -105,7 +105,7 @@ def shift(time):
 
 class Collisions:
     BOUNCE = 0.15
-    SMALL = 1e-8
+    SMALL = 1e-4
     @staticmethod
     def pumpkins(objects):
         for i in range(len(objects)):
@@ -305,6 +305,14 @@ async def main():
 
         player_rotated = pygame.transform.rotate(player_image, player.theta)
         screen.blit(player_rotated, player_rotated.get_rect(center=player.pos))
+
+        pygame.draw.rect(screen, (255, 255, 255), pygame.Rect(0,0,WIDTH,38), 3)
+        pygame.draw.rect(screen, (255, 255, 255), pygame.Rect(0,0,38,HEIGHT), 3)
+        pygame.draw.rect(screen, (255, 255, 255), pygame.Rect(0,HEIGHT-33,WIDTH,33), 3)
+        pygame.draw.rect(screen, (255, 255, 255), pygame.Rect(WIDTH-34,0,34,HEIGHT), 3)
+
+        pygame.draw.rect(screen, (255, 255, 255), pygame.Rect(250,382,154,140), 3)
+        pygame.draw.rect(screen, (255, 255, 255), pygame.Rect(1000,382,154,140), 3)
 
         for p in pumpkins:
             pygame.draw.circle(screen, (254, 117, 24), p.pos, p.r)
