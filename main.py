@@ -137,6 +137,67 @@ class Collisions:
                 else: correction = normal * (overlap / 2)
                 a.pos -= correction
                 b.pos += correction
+    @staticmethod
+    def robotPumpkins(robot, pumpkins):
+        robor = robot_hitbox
+        right = Vector2(1, 0).rotate(-robot.theta)
+        up = Vector2(0, 1).rotate(-robot.theta)
+
+        for p in pumpkins:
+            if p.height > p.r:
+                continue
+
+            relative = p.pos - robot.pos
+            localX = relative.dot(right)
+            localY = relative.dot(up)
+
+            closestX = max(-robor, min(robor, localX))
+            closestY = max(-robor, min(robor, localY))
+
+            closestLocal = Vector2(closestX, closestY)
+
+            closestWord = (
+                robot.pos
+                + right * closestLocal.x
+                + up * closestLocal.y
+            )
+
+            diff = p.pos - closestWord
+            distanceSquared = diff.length_squared()
+
+            if distanceSquared >= p.r**2:
+                continue
+
+            if distanceSquared > Collisions.SMALL:
+                distance = math.sqrt(distanceSquared)
+                normal = diff / distance
+                penetration = p.r - distance
+            else:
+                distX = robor-abs(localX)
+                distY = robor-abs(localY)
+
+                if distX < distY:
+                    localNormal = Vector2(
+                        1 if localX >= 0 else -1,
+                        0
+                    )
+                    penetration = p.r + distX
+                else:
+                    localNormal = Vector2(
+                        0,
+                        1 if localY >= 0 else -1
+                    )
+                    penetration = p.r + distY
+
+                normal = (
+                    right * localNormal.x
+                    + up * localNormal.y
+                )
+            p.pos += normal * penetration
+            velocity_toward_robot = p.v.dot(normal)
+
+            if velocity_toward_robot < 0:
+                p.v += velocity_toward_robot * normal
 
 async def main():
     pygame.init()
@@ -237,7 +298,7 @@ async def main():
             player_hub.held -= 1
 
         Collisions.pumpkins(pumpkins)
-
+        Collisions.robotPumpkins(player, pumpkins)
 
         screen.fill((0,0,0))
         screen.blit(bg_image, (0, 0))
