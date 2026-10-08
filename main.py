@@ -103,6 +103,41 @@ def shift(time):
     elif (time < 160):
         return ("endgame", math.floor(160 - time))
 
+class Collisions:
+    BOUNCE = 0.15
+    SMALL = 1e-8
+    @staticmethod
+    def pumpkins(objects):
+        for i in range(len(objects)):
+            a = objects[i]
+            for j in range(i + 1, len(objects)):
+                b = objects[j]
+                if abs(a.height - b.height) > a.r + b.r: continue
+                d = b.pos - a.pos
+                distanceSquared = d.length_squared()
+
+                if distanceSquared < Collisions.SMALL:
+                    normal = Vector2(1, 0)
+                    dist = 0.0
+                else:
+                    dist = math.sqrt(distanceSquared)
+                    normal = d/dist
+
+                minDist = a.r + b.r
+                if dist >= minDist: continue
+                rvel = b.v - a.v
+                rvelNorm = rvel.dot(normal)
+                if rvelNorm < 0:
+                    impulse = -(1 + Collisions.BOUNCE) * rvelNorm / 2
+                    a.v -= impulse * normal
+                    b.v += impulse * normal
+
+                overlap = minDist - dist
+                if dist < Collisions.SMALL: correction = normal * (overlap / 2)
+                else: correction = normal * (overlap / 2)
+                a.pos -= correction
+                b.pos += correction
+
 async def main():
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.SCALED)
@@ -200,6 +235,8 @@ async def main():
         if player_hub.held > 0 and random.randint(0, 6 - min(6, player_hub.held)) == 0:
             pumpkins.append(Pumpkin(player_hub.pos + Vector2(80, 0), Vector2(1, 0).rotate(random.uniform(-45, 45)) * random.uniform(3, 10)))
             player_hub.held -= 1
+
+        Collisions.pumpkins(pumpkins)
 
 
         screen.fill((0,0,0))
