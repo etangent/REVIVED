@@ -5,6 +5,7 @@ import math
 import asyncio
 from pygame.math import Vector2
 
+SCALE = 1
 WIDTH, HEIGHT = 1400, 900
 robot_hitbox = 30
 
@@ -39,17 +40,17 @@ class Robot:
         xs = [c.x for c in corners]
         ys = [c.y for c in corners]
 
-        if min(xs) < 0:
-            self.pos.x += -min(xs)
+        if min(xs) < Collisions.Field.VALID.left:
+            self.pos.x += -min(xs) + Collisions.Field.VALID.left
             self.v.x = 0
-        if max(xs) > WIDTH:
-            self.pos.x -= max(xs) - WIDTH
+        if max(xs) > Collisions.Field.VALID.right:
+            self.pos.x -= max(xs) - Collisions.Field.VALID.right
             self.v.x = 0
-        if min(ys) < 0:
-            self.pos.y += -min(ys)
+        if min(ys) < Collisions.Field.VALID.top:
+            self.pos.y += -min(ys) + Collisions.Field.VALID.top
             self.v.y = 0
-        if max(ys) > HEIGHT:
-            self.pos.y -= max(ys) - HEIGHT
+        if max(ys) > Collisions.Field.VALID.bottom:
+            self.pos.y -= max(ys) - Collisions.Field.VALID.bottom
             self.v.y = 0
 
     # obstacles should be (pos, radius)
@@ -152,9 +153,150 @@ def shift(time):
     else:
         return ("done", 0)
 
+class Collisions:
+    class Field:
+        WALLS = [
+            pygame.Rect(0,0,WIDTH,38),
+            pygame.Rect(0,0,38,HEIGHT),
+            pygame.Rect(0,HEIGHT-33,WIDTH,33),
+            pygame.Rect(WIDTH-34,0,34,HEIGHT)
+        ]
+        VALID = pygame.Rect(38, 38, WIDTH-38-33, HEIGHT-33-33)
+        HUB = [ # not implemented, not super needed?
+            pygame.Rect(250,382,154,140),
+            pygame.Rect(1000,382,154,140)
+        ]
+    BOUNCE = 0.15
+    SMALL = 1e-4
+    @staticmethod
+    def pumpkins(objects):
+        for i in range(len(objects)):
+            a = objects[i]
+            for j in range(i + 1, len(objects)):
+                b = objects[j]
+                if abs(a.height - b.height) > a.r + b.r: continue
+                d = b.pos - a.pos
+                distanceSquared = d.length_squared()
+
+                if distanceSquared < Collisions.SMALL:
+                    normal = Vector2(1, 0)
+                    dist = 0.0
+                else:
+                    dist = math.sqrt(distanceSquared)
+                    normal = d/dist
+
+                minDist = a.r + b.r
+                if dist >= minDist: continue
+                rvel = b.v - a.v
+                rvelNorm = rvel.dot(normal)
+                if rvelNorm < 0:
+                    impulse = -(1 + Collisions.BOUNCE) * rvelNorm / 2
+                    a.v -= impulse * normal
+                    b.v += impulse * normal
+
+                overlap = minDist - dist
+                if dist < Collisions.SMALL: correction = normal * (overlap / 2)
+                else: correction = normal * (overlap / 2)
+                a.pos -= correction
+                b.pos += correction
+    @staticmethod
+    def robotPumpkins(robot, pumpkins):
+        robor = robot_hitbox
+        right = Vector2(1, 0).rotate(-robot.theta)
+        up = Vector2(0, 1).rotate(-robot.theta)
+
+        for p in pumpkins:
+            if p.height > p.r:
+                continue
+
+            relative = p.pos - robot.pos
+            localX = relative.dot(right)
+            localY = relative.dot(up)
+
+            closestX = max(-robor, min(robor, localX))
+            closestY = max(-robor, min(robor, localY))
+
+            closestLocal = Vector2(closestX, closestY)
+
+            closestWord = (
+                robot.pos
+                + right * closestLocal.x
+                + up * closestLocal.y
+            )
+
+            diff = p.pos - closestWord
+            distanceSquared = diff.length_squared()
+
+            if distanceSquared >= p.r**2:
+                continue
+
+            if distanceSquared > Collisions.SMALL:
+                distance = math.sqrt(distanceSquared)
+                normal = diff / distance
+                penetration = p.r - distance
+            else:
+                distX = robor-abs(localX)
+                distY = robor-abs(localY)
+
+                if distX < distY:
+                    localNormal = Vector2(
+                        1 if localX >= 0 else -1,
+                        0
+                    )
+                    penetration = p.r + distX
+                else:
+                    localNormal = Vector2(
+                        0,
+                        1 if localY >= 0 else -1
+                    )
+                    penetration = p.r + distY
+
+                normal = (
+                    right * localNormal.x
+                    + up * localNormal.y
+                )
+            p.pos += normal * penetration
+            velocity_toward_robot = p.v.dot(normal)
+
+            if velocity_toward_robot < 0:
+                p.v += velocity_toward_robot * normal
+    @staticmethod
+    def pumpkinWalls(pumpkins, walls):
+        for p in pumpkins:
+            for wall in walls:
+                closestX = max(wall.left, min(p.pos.x, wall.right))
+                closestY = max(wall.top, min(p.pos.y, wall.bottom))
+
+                diff = p.pos - Vector2(closestX, closestY)
+                distSq = diff.length_squared()
+
+                if distSq >= p.r**2:
+                    continue
+
+                if distSq > Collisions.SMALL:
+                    dist = math.sqrt(distSq)
+                    normal = diff / dist
+                    penetration = p.r - dist
+                else:
+                    distances = [
+                        (p.pos.x - wall.left, Vector2(-1, 0)),
+                        (wall.right - p.pos.x, Vector2(1, 0)),
+                        (p.pos.y - wall.top, Vector2(0, -1)),
+                        (wall.bottom - p.pos.y, Vector2(0, 1)),
+                    ]
+                    dist, normal = min(distances, key=lambda item: item[0])
+                    penetration = p.r + dist
+
+                p.pos += normal * penetration
+
+                velocity_toward_wall = p.v.dot(normal)
+                if velocity_toward_wall < 0:
+                    p.v -= 2 * velocity_toward_wall * normal
+
 async def main():
     pygame.init()
-    screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.SCALED)
+    _screen = pygame.display.set_mode((int(WIDTH*SCALE), int(HEIGHT*SCALE)), pygame.SCALED)
+    screen = pygame.Surface((WIDTH, HEIGHT))
     clock = pygame.time.Clock()
 
     player_image = pygame.image.load("assets/player.png").convert_alpha()
@@ -317,6 +459,9 @@ async def main():
         for t in taken:
             pumpkins.remove(t)
 
+        Collisions.pumpkins(pumpkins)
+        Collisions.robotPumpkins(player, pumpkins)
+        Collisions.pumpkinWalls(pumpkins, Collisions.Field.WALLS)
 
         screen.fill((0,0,0))
         screen.blit(bg_image, (0, 0))
@@ -348,7 +493,9 @@ async def main():
         if closest:
             pygame.draw.circle(screen, (0, 0, 255), closest.pos, 10)
 
+        _screen.blit(pygame.transform.scale(screen, _screen.get_size()), (0,0))
         pygame.display.flip()
+
         clock.tick(60)
         timer += 1/60
         await asyncio.sleep(0)
