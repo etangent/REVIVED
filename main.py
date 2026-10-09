@@ -1,4 +1,5 @@
 from cmath import rect
+from sys import platform
 import pygame
 import random
 import math
@@ -56,6 +57,16 @@ class Robot:
     def forward(self):
         return Vector2(-1, 0).rotate(-self.theta)
 
+    def collide_hub(self, hub):
+        closest_x = max(hub.rect.left, min(self.pos.x, hub.rect.right))
+        closest_y = max(hub.rect.top, min(self.pos.y, hub.rect.bottom))
+        diff = self.pos - Vector2(closest_x, closest_y)
+        distance = diff.length()
+        if distance < robot_hitbox and distance > 0:
+            overlap = robot_hitbox - distance
+            self.pos += diff.normalize() * overlap
+            self.v = Vector2(0, 0)
+
 class Pumpkin:
     camera_height = 60**2 / 2
 
@@ -83,9 +94,20 @@ class Pumpkin:
         self.r = 10 * self.camera_height / (self.camera_height - self.height)
 
 class Hub:
-    def __init__(self, pos):
+    def __init__(self, pos, width = 150, height = 150):
         self.pos = pos
         self.held = 0
+        self.rect = pygame.Rect(pos.x - width/2, pos.y - height/2, width, height)
+
+    hub = pygame.Rect(130, 130, 280, 480)
+
+class Enemy_Hub:
+    def __init__(self, pos, width = 150, height = 150):
+        self.pos = pos
+        self.held = 0
+        self.rect = pygame.Rect(pos.x - width/2, pos.y - height/2, width, height)
+
+    enemyhub = pygame.Rect(130, 130, 1000, 1000)
 
 def shift(time):
     if (time < 20):
@@ -184,6 +206,26 @@ async def main():
                     player.intake_reload += .03
             for t in taken:
                 pumpkins.remove(t)
+
+
+        if player.collide_hub(player_hub) == True:
+            if velocity_y > 0:
+                y = platform.top - 50
+                velocity_y = 0
+                on_ground = True
+            elif velocity_y < 0:
+                y = platform.bottom
+                velocity_y = 0
+
+        if player.collide_hub(enemy_hub) == True:
+                    if velocity_y > 0:
+                        y = platform.top - 50
+                        velocity_y = 0
+                        on_ground = True
+                    elif velocity_y < 0:
+                        y = platform.bottom
+                        velocity_y = 0
+
 
         taken = []
         for p in pumpkins:
