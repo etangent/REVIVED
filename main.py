@@ -137,19 +137,19 @@ class Hub:
 
 def shift(time):
     if (time < 20):
-        return ("auto", math.floor(20 - time))
+        return ("auto", math.ceil(20 - time))
     elif (time < 30):
-        return ("transition", math.floor(30 - time))
+        return ("transition", math.ceil(30 - time))
     elif (time < 55):
-        return ("loser", math.floor(55 - time))
+        return ("loser", math.ceil(55 - time))
     elif (time < 80):
-        return ("winner", math.floor(80 - time))
+        return ("winner", math.ceil(80 - time))
     elif (time < 105):
-        return ("loser", math.floor(105 - time))
+        return ("loser", math.ceil(105 - time))
     elif (time < 130):
-        return ("winner", math.floor(130 - time))
+        return ("winner", math.ceil(130 - time))
     elif (time < 160):
-        return ("endgame", math.floor(160 - time))
+        return ("endgame", math.ceil(160 - time))
     else:
         return ("done", 0)
 
@@ -206,7 +206,7 @@ class Collisions:
         up = Vector2(0, 1).rotate(-robot.theta)
 
         for p in pumpkins:
-            if p.height > p.r:
+            if p.height > 0:
                 continue
 
             relative = p.pos - robot.pos
@@ -260,6 +260,7 @@ class Collisions:
 
             if velocity_toward_robot < 0:
                 p.v += velocity_toward_robot * normal
+
     @staticmethod
     def pumpkinWalls(pumpkins, walls):
         for p in pumpkins:
@@ -380,6 +381,52 @@ async def main():
             player.reload = .1
             player.held -= 1
 
+        if player_hub.held > 0 and random.randint(0, 6 - min(6, player_hub.held)) == 0:
+            pumpkins.append(Pumpkin(player_hub.pos + Vector2(80, 0), Vector2(1, 0).rotate(random.uniform(-45, 45)) * random.uniform(3, 10)))
+            player_hub.held -= 1
+        if enemy_hub.held > 0 and random.randint(0, 6 - min(6, enemy_hub.held)) == 0:
+            pumpkins.append(Pumpkin(enemy_hub.pos - Vector2(80, 0), Vector2(-1, 0).rotate(random.uniform(-45, 45)) * random.uniform(3, 10)))
+            enemy_hub.held -= 1
+        if shift(timer + 2)[0] != player_auto_status and (enemy.held == enemy.capacity or (enemy.held > 0 and enemy.pos.x > enemy_hub.pos.x + 100)):
+            enemy.align(enemy_hub.pos + Vector2(200, 0), enemy.theta, [(player_hub.pos, 75), (enemy_hub.pos, 75)])
+            if enemy.reload == 0 and enemy.pos.x > enemy_hub.pos.x + 100:
+                target = Vector2(enemy_hub.pos)
+                v_up = random.randint(25, 35)
+                tof = 2 * v_up
+                v = (target - enemy.pos).normalize() * target.distance_to(enemy.pos) / tof
+                v += .05 * enemy.v
+                print(v, v_up)
+                pumpkins.append(Pumpkin(enemy.pos.copy(), v, v_up))
+                enemy.reload = .1
+                enemy.held -= 1
+        elif enemy.held < enemy.capacity and pumpkins:
+            closest = min(pumpkins, key=lambda x: .03 * x.pos.distance_to(enemy.pos) + 100000 * x.height - 1 * (-enemy.forward()).dot((x.pos - enemy.pos).normalize() if x.pos != enemy.pos else Vector2(0,0)))
+
+            diffVector = closest.pos - enemy.pos
+            dist = diffVector.length()
+
+            if dist > 0:
+                target_theta = -math.degrees(math.atan2(diffVector.y, diffVector.x))
+            else:
+                target_theta = enemy.theta
+
+            enemy.align(closest.pos, target_theta, [(player_hub.pos, 75), (enemy_hub.pos, 75)])            
+        else:
+            enemy.align(player.pos, enemy.theta + 1, [(player_hub.pos, 75), (enemy_hub.pos, 75)])
+
+        enemy.update()
+        enemy.collide_walls()
+        taken = []
+        for p in pumpkins:
+            if enemy.held == enemy.capacity or enemy.intake_reload >= .15:
+                break
+            if p.v_up == 0 and (-1 * enemy.forward()).dot((p.pos - enemy.pos).normalize()) > .7 and p.pos.distance_to(enemy.pos - enemy.forward()) < 4 * p.r:
+                taken.append(p)
+                enemy.held+=1
+                enemy.intake_reload += .03
+        for t in taken:
+            pumpkins.remove(t)
+
         if keys[pygame.K_LSHIFT]:
             taken = []
             for p in pumpkins:
@@ -409,58 +456,9 @@ async def main():
         for t in taken:
             pumpkins.remove(t)
 
-        closest = Vector2(0, 0)
-        if player_hub.held > 0 and random.randint(0, 6 - min(6, player_hub.held)) == 0:
-            pumpkins.append(Pumpkin(player_hub.pos + Vector2(80, 0), Vector2(1, 0).rotate(random.uniform(-45, 45)) * random.uniform(3, 10)))
-            player_hub.held -= 1
-        if enemy_hub.held > 0 and random.randint(0, 6 - min(6, enemy_hub.held)) == 0:
-            pumpkins.append(Pumpkin(enemy_hub.pos - Vector2(80, 0), Vector2(-1, 0).rotate(random.uniform(-45, 45)) * random.uniform(3, 10)))
-            enemy_hub.held -= 1
-        if shift(timer + 2)[0] != player_auto_status and (enemy.held == enemy.capacity or (enemy.held > 0 and enemy.pos.x > enemy_hub.pos.x + 100)):
-            enemy.align(enemy_hub.pos + Vector2(200, 0), enemy.theta, [(player_hub.pos, 75), (enemy_hub.pos, 75)])
-            if enemy.reload == 0 and enemy.pos.x > enemy_hub.pos.x + 100:
-                target = Vector2(enemy_hub.pos)
-                v_up = random.randint(25, 35)
-                tof = 2 * v_up
-                v = (target - enemy.pos).normalize() * target.distance_to(enemy.pos) / tof
-                v += .05 * enemy.v
-                pumpkins.append(Pumpkin(enemy.pos.copy(), v, v_up))
-                enemy.reload = .1
-                enemy.held -= 1
-        elif enemy.held < enemy.capacity and pumpkins:
-            if enemy.v.length() > 0.5:
-                move_dir = enemy.v.normalize()
-            else:
-                move_dir = -enemy.forward()
-            closest = min(pumpkins, key=lambda x: x.pos.distance_to(enemy.pos) + 100000 * x.height + .3 * move_dir.dot((x.pos - enemy.pos).normalize() if x.pos != enemy.pos else Vector2(0,0)))
-
-            diffVector = closest.pos - enemy.pos
-            dist = diffVector.length()
-
-            if dist > 0:
-                target_theta = -math.degrees(math.atan2(diffVector.y, diffVector.x))
-            else:
-                target_theta = enemy.theta
-
-            enemy.align(closest.pos, target_theta, [(player_hub.pos, 75), (enemy_hub.pos, 75)])            
-        else:
-            enemy.align(player.pos, enemy.theta + 1, [(player_hub.pos, 75), (enemy_hub.pos, 75)])
-
-        enemy.update()
-        enemy.collide_walls()
-        taken = []
-        for p in pumpkins:
-            if enemy.held == enemy.capacity or enemy.intake_reload >= .15:
-                break
-            if p.v_up == 0 and (-1 * enemy.forward()).dot((p.pos - enemy.pos).normalize()) > .7 and p.pos.distance_to(enemy.pos - enemy.forward()) < 4 * p.r:
-                taken.append(p)
-                enemy.held+=1
-                enemy.intake_reload += .03
-        for t in taken:
-            pumpkins.remove(t)
-
         Collisions.pumpkins(pumpkins)
         Collisions.robotPumpkins(player, pumpkins)
+        Collisions.robotPumpkins(enemy, pumpkins)
         Collisions.pumpkinWalls(pumpkins, Collisions.Field.WALLS)
 
         screen.fill((0,0,0))
@@ -489,9 +487,6 @@ async def main():
                 curr_shift = "enemy"
         text_surface = font.render("Shift: " + curr_shift + ", " + str(shift(timer)[1]), False, (255, 255, 255))
         screen.blit(text_surface, (WIDTH - 400, HEIGHT - 50))
-
-        if closest:
-            pygame.draw.circle(screen, (0, 0, 255), closest.pos, 10)
 
         _screen.blit(pygame.transform.scale(screen, _screen.get_size()), (0,0))
         pygame.display.flip()
