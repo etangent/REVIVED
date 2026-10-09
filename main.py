@@ -115,6 +115,44 @@ class Robot:
             self.pos += diff.normalize() * overlap
             self.v = Vector2(0, 0)
 
+    def collide_other(self, other):
+        self_corners = self.get_hitbox()
+        other_corners = other.get_hitbox()
+        min_overlap = float("inf")
+        collision_normal = None
+
+        # Separating-axis test for the robots' rotated square hitboxes.
+        for corners in (self_corners, other_corners):
+            for i in range(len(corners)):
+                edge = corners[(i + 1) % len(corners)] - corners[i]
+                axis = Vector2(-edge.y, edge.x).normalize()
+                self_projection = [corner.dot(axis) for corner in self_corners]
+                other_projection = [corner.dot(axis) for corner in other_corners]
+                overlap = min(max(self_projection), max(other_projection)) - max(
+                    min(self_projection), min(other_projection)
+                )
+                if overlap <= 0:
+                    return
+                if overlap < min_overlap:
+                    min_overlap = overlap
+                    collision_normal = axis
+
+        if (other.pos - self.pos).dot(collision_normal) < 0:
+            collision_normal = -collision_normal
+
+        # Move both robots out of each other and exchange velocity along the
+        # collision direction, allowing a moving robot to push the other.
+        correction = collision_normal * (min_overlap / 2)
+        self.pos -= correction
+        other.pos += correction
+
+        relative_velocity = other.v - self.v
+        velocity_along_normal = relative_velocity.dot(collision_normal)
+        if velocity_along_normal < 0:
+            impulse = -(1 + Collisions.BOUNCE) * velocity_along_normal / 2
+            self.v -= impulse * collision_normal
+            other.v += impulse * collision_normal
+
 class Pumpkin:
     camera_height = 60**2 / 2
 
@@ -422,7 +460,7 @@ async def main():
                 enemy.reload = .1
                 enemy.held -= 1
         elif enemy.held < enemy.capacity and pumpkins:
-            closest = min(pumpkins, key=lambda x: .03 * x.pos.distance_to(enemy.pos) + 100000 * x.height - 1 * (-enemy.forward()).dot((x.pos - enemy.pos).normalize() if x.pos != enemy.pos else Vector2(0,0)))
+            closest = min(pumpkins, key=lambda x: .001 * x.pos.distance_to(enemy.pos) + 100000 * x.height - 1 * (-enemy.forward()).dot((x.pos - enemy.pos).normalize() if x.pos != enemy.pos else Vector2(0,0)))
 
             diffVector = closest.pos - enemy.pos
             dist = diffVector.length()
@@ -438,6 +476,7 @@ async def main():
 
         enemy.update()
         enemy.collide_walls()
+        player.collide_other(enemy)
         taken = []
         for p in pumpkins:
             if enemy.held == enemy.capacity or enemy.intake_reload >= .15:
