@@ -5,6 +5,7 @@ import math
 import asyncio
 from pygame.math import Vector2
 
+SCALE = 0.6 # henrys screen is 1366x768 (the game is bigger than my screen lel)
 WIDTH, HEIGHT = 1400, 900
 robot_hitbox = 30
 
@@ -201,7 +202,8 @@ class Collisions:
 
 async def main():
     pygame.init()
-    screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.SCALED)
+    _screen = pygame.display.set_mode((int(WIDTH*SCALE), int(HEIGHT*SCALE)), pygame.SCALED)
+    screen = pygame.Surface((WIDTH, HEIGHT))
     clock = pygame.time.Clock()
 
     player_image = pygame.image.load("assets/player.png").convert_alpha()
@@ -327,7 +329,9 @@ async def main():
         text_surface = font.render("Shift: " + shift(timer)[0] + ", " + str(shift(timer)[1]), False, (255, 255, 255))
         screen.blit(text_surface, (WIDTH - 500, HEIGHT - 50))
 
+        _screen.blit(pygame.transform.scale(screen, _screen.get_size()), (0,0))
         pygame.display.flip()
+
         clock.tick(60)
         timer += 1/60
         await asyncio.sleep(0)
