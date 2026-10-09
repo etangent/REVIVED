@@ -5,7 +5,7 @@ import math
 import asyncio
 from pygame.math import Vector2
 
-SCALE = 0.6 # henrys screen is 1366x768 (the game is bigger than my screen lel)
+SCALE = 1
 WIDTH, HEIGHT = 1400, 900
 robot_hitbox = 30
 
