@@ -121,7 +121,6 @@ class Robot:
         min_overlap = float("inf")
         collision_normal = None
 
-        # Separating-axis test for the robots' rotated square hitboxes.
         for corners in (self_corners, other_corners):
             for i in range(len(corners)):
                 edge = corners[(i + 1) % len(corners)] - corners[i]
@@ -140,8 +139,6 @@ class Robot:
         if (other.pos - self.pos).dot(collision_normal) < 0:
             collision_normal = -collision_normal
 
-        # Move both robots out of each other and exchange velocity along the
-        # collision direction, allowing a moving robot to push the other.
         correction = collision_normal * (min_overlap / 2)
         self.pos -= correction
         other.pos += correction
@@ -156,14 +153,17 @@ class Robot:
 class Pumpkin:
     camera_height = 60**2 / 2
 
-    def __init__(self, pos, v=Vector2(0, 0), v_up = 0, height = 0, r = 10):
+    def __init__(self, pos, v=None, v_up = 0, height = 0, r = 10):
         self.pos = pos
         self.v = v
+        if v == None:
+            self.v = Vector2(0, 0)
         self.height = height
         self.v_up = v_up
         self.r = r
 
     def update(self):
+        if self.v.length() > 0: self.v = self.v.normalize() * min(15, self.v.length())
         self.pos += self.v
         self.height += self.v_up
 
@@ -362,7 +362,8 @@ async def main():
 
     player_image = pygame.image.load("assets/player.png").convert_alpha()
     player_image = pygame.transform.scale(player_image, (60, 60))
-    enemy_image = pygame.image.load("assets/player.png").convert_alpha()
+    player_image = pygame.transform.rotate(player_image, 180)
+    enemy_image = pygame.image.load("assets/enemy.png").convert_alpha()
     enemy_image = pygame.transform.scale(enemy_image, (60, 60))
 
 
@@ -455,7 +456,6 @@ async def main():
                 tof = 2 * v_up
                 v = (target - enemy.pos).normalize() * target.distance_to(enemy.pos) / tof
                 v += .05 * enemy.v
-                print(v, v_up)
                 pumpkins.append(Pumpkin(enemy.pos.copy(), v, v_up))
                 enemy.reload = .1
                 enemy.held -= 1
@@ -587,6 +587,7 @@ async def main():
     screen.blit(text_surface, (10, 0))
     text_surface = font.render("Enemy Score: " + str(enemy_score), False, (255, 255, 255))  
     screen.blit(text_surface, (WIDTH - 600, 0))
+    _screen.blit(pygame.transform.scale(screen, _screen.get_size()), (0, 0))
     pygame.display.flip()
 
     while running:
