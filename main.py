@@ -36,6 +36,7 @@ class Robot:
             corners.append(self.pos + Vector2(x, y).rotate(-self.theta))
         return corners
 
+    # keep robot within field bounds
     def collide_walls(self):
         corners = self.get_hitbox()
         xs = [c.x for c in corners]
@@ -115,6 +116,7 @@ class Robot:
             self.pos += diff.normalize() * overlap
             self.v = Vector2(0, 0)
 
+    # collisions with enemy robots
     def collide_other(self, other):
         self_corners = self.get_hitbox()
         other_corners = other.get_hitbox()
@@ -153,6 +155,7 @@ class Robot:
 class Pumpkin:
     camera_height = 60**2 / 2
 
+    # height determines the balls apparent radius
     def __init__(self, pos, v=None, v_up = 0, height = 0, r = 10):
         self.pos = pos
         self.v = v
@@ -185,16 +188,7 @@ class Hub:
         self.held = 0
         self.rect = pygame.Rect(pos.x - width/2, pos.y - height/2, width, height)
 
-    hub = pygame.Rect(130, 130, 280, 480)
-
-class Enemy_Hub:
-    def __init__(self, pos, width = 150, height = 150):
-        self.pos = pos
-        self.held = 0
-        self.rect = pygame.Rect(pos.x - width/2, pos.y - height/2, width, height)
-
-    enemyhub = pygame.Rect(130, 130, 1000, 1000)
-
+# deterimines time left in game and who can score
 def shift(time):
     if (time < 20):
         return ("auto", math.ceil(20 - time))
@@ -365,6 +359,7 @@ async def main():
     player_image = pygame.transform.rotate(player_image, 180)
     enemy_image = pygame.image.load("assets/enemy.png").convert_alpha()
     enemy_image = pygame.transform.scale(enemy_image, (60, 60))
+    enemy_image = pygame.transform.rotate(enemy_image, 180)
 
 
     bg_image = pygame.image.load("assets/field.png").convert_alpha()
@@ -404,6 +399,7 @@ async def main():
                 running = False
                 pygame.quit()      
 
+        # player movement
         keys = pygame.key.get_pressed()
         val = 2
         if ((keys[pygame.K_a] or keys[pygame.K_d]) and (keys[pygame.K_w] or keys[pygame.K_s])):
@@ -425,8 +421,10 @@ async def main():
         player.update()
         player.collide_walls()
 
+        # shooting controls
         if keys[pygame.K_SPACE] and player.held > 0 and player.reload == 0:
             if player.pos.x > WIDTH / 4:
+                # feeding
                 if player.pos.y < HEIGHT / 2:
                     target = Vector2(WIDTH / 4, HEIGHT / 4)
                 else:
@@ -442,12 +440,15 @@ async def main():
             player.reload = .1
             player.held -= 1
 
+        # hub scoring
         if player_hub.held > 0 and random.randint(0, 6 - min(6, player_hub.held)) == 0:
             pumpkins.append(Pumpkin(player_hub.pos + Vector2(80, 0), Vector2(1, 0).rotate(random.uniform(-45, 45)) * random.uniform(3, 10)))
             player_hub.held -= 1
         if enemy_hub.held > 0 and random.randint(0, 6 - min(6, enemy_hub.held)) == 0:
             pumpkins.append(Pumpkin(enemy_hub.pos - Vector2(80, 0), Vector2(-1, 0).rotate(random.uniform(-45, 45)) * random.uniform(3, 10)))
             enemy_hub.held -= 1
+        # enemy decision tree
+        # scoring state
         if shift(timer + 2)[0] != player_auto_status and (enemy.held == enemy.capacity or (enemy.held > 0 and enemy.pos.x > enemy_hub.pos.x + 100)):
             enemy.align(enemy_hub.pos + Vector2(200, 0), enemy.theta, [(player_hub.pos, 75), (enemy_hub.pos, 75)])
             if enemy.reload == 0 and enemy.pos.x > enemy_hub.pos.x + 100:
@@ -459,6 +460,7 @@ async def main():
                 pumpkins.append(Pumpkin(enemy.pos.copy(), v, v_up))
                 enemy.reload = .1
                 enemy.held -= 1
+        # intaking state
         elif enemy.held < enemy.capacity and pumpkins:
             closest = min(pumpkins, key=lambda x: .001 * x.pos.distance_to(enemy.pos) + 100000 * x.height - 1 * (-enemy.forward()).dot((x.pos - enemy.pos).normalize() if x.pos != enemy.pos else Vector2(0,0)))
 
@@ -470,7 +472,8 @@ async def main():
             else:
                 target_theta = enemy.theta
 
-            enemy.align(closest.pos, target_theta, [(player_hub.pos, 75), (enemy_hub.pos, 75)])            
+            enemy.align(closest.pos, target_theta, [(player_hub.pos, 75), (enemy_hub.pos, 75)])    
+        # defending state        
         else:
             enemy.align(player.pos, enemy.theta + 1, [(player_hub.pos, 75), (enemy_hub.pos, 75)])
 
@@ -488,6 +491,7 @@ async def main():
         for t in taken:
             pumpkins.remove(t)
 
+        # player intaking controls
         if keys[pygame.K_LSHIFT]:
             taken = []
             for p in pumpkins:
@@ -500,7 +504,7 @@ async def main():
             for t in taken:
                 pumpkins.remove(t)
 
-
+        # hub collision detection
         if player.collide_hub(player_hub) == True:
             if velocity_y > 0:
                 y = platform.top - 50
@@ -521,6 +525,7 @@ async def main():
 
 
         taken = []
+        # hub scoring detection
         for p in pumpkins:
             p.update()
 
@@ -537,11 +542,13 @@ async def main():
         for t in taken:
             pumpkins.remove(t)
 
+        # ball collisions
         Collisions.pumpkins(pumpkins)
         Collisions.robotPumpkins(player, pumpkins)
         Collisions.robotPumpkins(enemy, pumpkins)
         Collisions.pumpkinWalls(pumpkins, Collisions.Field.WALLS)
 
+        # rendering
         screen.fill((0,0,0))
         screen.blit(bg_image, (0, 0))
 
@@ -576,6 +583,7 @@ async def main():
         timer += 1/60
         await asyncio.sleep(0)
 
+    # endscreen
     screen.fill((0, 0, 0))
     winner = "player"
     if enemy_score > player_score:
